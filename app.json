@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "oclaw",
+    "slug": "oclaw-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "scheme": "oclaw",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0a0a0a"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.quantumbytes.oclaw",
+      "infoPlist": {
+        "NSCameraUsageDescription": "oclaw needs camera access to scan pairing QR codes"
+      }
+    },
+    "android": {
+      "package": "com.quantumbytes.oclaw",
+      "adaptiveIcon": {
+        "backgroundColor": "#0a0a0a",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "oclaw needs camera access to scan pairing QR codes"
+        }
+      ]
+    ]
+  }
+}
