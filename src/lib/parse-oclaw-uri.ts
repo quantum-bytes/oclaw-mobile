@@ -2,11 +2,13 @@ export interface PairInfo {
   host: string;
   port: number;
   token: string;
+  deviceId?: string;
+  deviceKey?: string; // base64-encoded Ed25519 seed (32 bytes)
 }
 
 /**
  * Parse an oclaw:// URI from QR code.
- * Format: oclaw://host:port?token=xxx
+ * Format: oclaw://host:port?token=xxx&did=xxx&dkey=xxx
  * Rejects URIs with credentials, paths, or fragments.
  */
 export function parseOclawURI(uri: string): PairInfo {
@@ -16,7 +18,6 @@ export function parseOclawURI(uri: string): PairInfo {
     throw new Error('Invalid URI: must start with oclaw://');
   }
 
-  // Use URL parser with http swap since URL doesn't understand oclaw://
   const asHTTP = toParse.replace('oclaw://', 'http://');
   let parsed: URL;
   try {
@@ -25,7 +26,6 @@ export function parseOclawURI(uri: string): PairInfo {
     throw new Error('Invalid URI format');
   }
 
-  // Reject unexpected components
   if (parsed.username || parsed.password) {
     throw new Error('Invalid URI: credentials not allowed');
   }
@@ -51,5 +51,8 @@ export function parseOclawURI(uri: string): PairInfo {
     throw new Error('Missing token in URI');
   }
 
-  return { host, port, token };
+  const deviceId = parsed.searchParams.get('did') ?? undefined;
+  const deviceKey = parsed.searchParams.get('dkey') ?? undefined;
+
+  return { host, port, token, deviceId, deviceKey };
 }

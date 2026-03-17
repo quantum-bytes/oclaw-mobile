@@ -20,7 +20,7 @@ import { GatewayClient } from '../src/gateway/client';
 type Mode = 'scan' | 'manual';
 
 export default function PairScreen() {
-  const [mode, setMode] = useState<Mode>('scan');
+  const [mode, setMode] = useState<Mode>('manual');
   const [testing, setTesting] = useState(false);
   const [manualURL, setManualURL] = useState('');
   const [manualToken, setManualToken] = useState('');

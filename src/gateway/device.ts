@@ -1,22 +1,11 @@
-import * as SecureStore from 'expo-secure-store';
 import * as ed from '@noble/ed25519';
+// @ts-ignore - exports map requires .js extension
+import { sha512 } from '@noble/hashes/sha2.js';
 import { Platform } from 'react-native';
-import { v4 as uuid } from 'uuid';
 import type { DeviceInfo } from './protocol';
 
-const DEVICE_ID_KEY = 'oclaw_device_id';
-const PRIVATE_KEY_KEY = 'oclaw_device_privkey';
-const PUBLIC_KEY_KEY = 'oclaw_device_pubkey';
-
-// Use webcrypto SHA-512 for @noble/ed25519
-// @noble/ed25519 v2 requires setting sha512
-// In React Native, we use the built-in crypto.subtle
-if (typeof globalThis.crypto?.subtle?.digest === 'function') {
-  ed.etc.sha512Async = async (message: Uint8Array) => {
-    const buf = await globalThis.crypto.subtle.digest('SHA-512', message as ArrayBufferView<ArrayBuffer>);
-    return new Uint8Array(buf);
-  };
-}
+// Use @noble/hashes for SHA-512 (works in Hermes without crypto.subtle)
+ed.etc.sha512Sync = sha512;
 
 function toBase64(bytes: Uint8Array): string {
   let binary = '';
@@ -26,69 +15,45 @@ function toBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-function fromHex(hex: string): Uint8Array {
-  const bytes = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < hex.length; i += 2) {
-    bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
+function fromBase64(b64: string): Uint8Array {
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
   }
   return bytes;
 }
 
-function toHex(bytes: Uint8Array): string {
-  return Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-}
-
-async function getOrCreateIdentity(): Promise<{
-  deviceId: string;
-  privateKey: Uint8Array;
-  publicKey: Uint8Array;
-}> {
-  let deviceId = await SecureStore.getItemAsync(DEVICE_ID_KEY);
-  let privHex = await SecureStore.getItemAsync(PRIVATE_KEY_KEY);
-  let pubHex = await SecureStore.getItemAsync(PUBLIC_KEY_KEY);
-
-  if (deviceId && privHex && pubHex) {
-    return {
-      deviceId,
-      privateKey: fromHex(privHex),
-      publicKey: fromHex(pubHex),
-    };
-  }
-
-  // Generate new identity
-  deviceId = uuid().replace(/-/g, '');
-  const privateKey = ed.utils.randomPrivateKey();
-  const publicKey = await ed.getPublicKeyAsync(privateKey);
-
-  await SecureStore.setItemAsync(DEVICE_ID_KEY, deviceId);
-  await SecureStore.setItemAsync(PRIVATE_KEY_KEY, toHex(privateKey));
-  await SecureStore.setItemAsync(PUBLIC_KEY_KEY, toHex(publicKey));
-
-  return { deviceId, privateKey, publicKey };
-}
-
 /**
  * Build DeviceInfo with Ed25519 signature for gateway auth.
+ * Uses device credentials provided via QR code pairing.
+ *
  * Signing payload format matches Go client (client.go line 679):
- * v3|{deviceId}|mobile|mobile|operator|operator.admin,operator.read,operator.write|{signedAtMs}|{token}|{nonce}|{platform}|
+ * v3|{deviceId}|cli|cli|operator|operator.admin,operator.read,operator.write|{signedAtMs}|{token}|{nonce}|{platform}|
  */
-export async function getDeviceInfo(
+export function getDeviceInfo(
   nonce: string,
   token: string,
-): Promise<DeviceInfo | null> {
+  deviceId?: string,
+  deviceKeyB64?: string,
+): DeviceInfo | null {
+  if (!deviceId || !deviceKeyB64) {
+    return null;
+  }
+
   try {
-    const { deviceId, privateKey, publicKey } = await getOrCreateIdentity();
+    const seed = fromBase64(deviceKeyB64);
+    const publicKey = ed.getPublicKey(seed);
 
     const signedAt = Date.now();
     const scopes = 'operator.admin,operator.read,operator.write';
-    const platform = Platform.OS;
+    // Must match the device's registered platform to avoid re-pairing
+    const platform = 'darwin';
 
-    const payload = `v3|${deviceId}|mobile|mobile|operator|${scopes}|${signedAt}|${token}|${nonce}|${platform}|`;
+    const payload = `v3|${deviceId}|cli|cli|operator|${scopes}|${signedAt}|${token}|${nonce}|${platform}|`;
     const payloadBytes = new TextEncoder().encode(payload);
 
-    const signature = await ed.signAsync(payloadBytes, privateKey);
+    const signature = ed.sign(payloadBytes, seed);
 
     return {
       id: deviceId,
@@ -97,8 +62,8 @@ export async function getDeviceInfo(
       signedAt,
       nonce,
     };
-  } catch {
-    // Device signing is optional — return null if SecureStore is unavailable
+  } catch (err) {
+    console.error('[oclaw] Device signing failed:', err);
     return null;
   }
 }

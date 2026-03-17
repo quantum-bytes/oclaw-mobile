@@ -9,6 +9,8 @@ export interface SavedConnection {
   port: number;
   token: string;
   label: string;
+  deviceId?: string;
+  deviceKey?: string; // base64-encoded Ed25519 seed
   addedAt: number;
 }
 

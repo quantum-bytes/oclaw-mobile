@@ -35,10 +35,13 @@ export function useGateway() {
 
   const fetchAgentsAndHistory = useCallback(async (client: GatewayClient, agentId?: string) => {
     try {
-      const agentsRes = await client.request<AgentsListResponse>('agents.list');
-      useGatewayStore.getState().setAgents(agentsRes.agents);
+      const agentsRaw = await client.request<any>('agents.list', {});
+      console.log('[oclaw] agents.list response:', JSON.stringify(agentsRaw));
+      // Handle both {agents: [...]} and direct array
+      const agents = agentsRaw?.agents ?? (Array.isArray(agentsRaw) ? agentsRaw : []);
+      useGatewayStore.getState().setAgents(agents);
 
-      const current = agentId ?? agentsRes.agents[0]?.id;
+      const current = agentId ?? agents[0]?.id;
       if (current) {
         useGatewayStore.getState().setCurrentAgent(current);
 
@@ -46,12 +49,15 @@ export function useGateway() {
         useGatewayStore.getState().setCurrentSession(sessionKey);
 
         try {
-          const historyRes = await client.request<ChatHistoryResponse>('chat.history', {
+          const historyRaw = await client.request<any>('chat.history', {
             sessionKey,
           });
-          const msgs = historyRes.messages.map(chatMessageToDisplay);
+          console.log('[oclaw] chat.history response keys:', Object.keys(historyRaw ?? {}));
+          const messages = historyRaw?.messages ?? (Array.isArray(historyRaw) ? historyRaw : []);
+          const msgs = messages.map(chatMessageToDisplay);
           useGatewayStore.getState().setMessages(msgs);
-        } catch {
+        } catch (e) {
+          console.log('[oclaw] chat.history error (ok for new session):', String(e));
           useGatewayStore.getState().setMessages([]);
         }
       }
@@ -61,13 +67,13 @@ export function useGateway() {
   }, []);
 
   const connect = useCallback(
-    async (host: string, port: number, token: string) => {
+    async (host: string, port: number, token: string, deviceId?: string, deviceKey?: string) => {
       if (clientRef.current) {
         reconnectRef.current?.stop();
         clientRef.current.disconnect();
       }
 
-      const client = new GatewayClient(host, port, token);
+      const client = new GatewayClient(host, port, token, deviceId, deviceKey);
       clientRef.current = client;
 
       client.events.on('connected', () => {

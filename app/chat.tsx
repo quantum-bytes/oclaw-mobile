@@ -49,9 +49,12 @@ export default function ChatScreen() {
       return;
     }
 
-    connect(conn.host, conn.port, conn.token).catch(() => {
-      // Will auto-reconnect
-    });
+    console.log('[oclaw] Connecting to', conn.host, conn.port);
+    connect(conn.host, conn.port, conn.token, conn.deviceId, conn.deviceKey)
+      .then(() => console.log('[oclaw] Connected!'))
+      .catch((err) => {
+        console.error('[oclaw] Connection failed:', String(err), err?.message);
+      });
 
     return () => disconnect();
   }, []);

@@ -46,6 +46,8 @@ export class GatewayClient {
     private host: string,
     private port: number,
     private token: string,
+    private deviceId?: string,
+    private deviceKey?: string,
     private secure: boolean = false,
   ) {}
 
@@ -103,6 +105,7 @@ export class GatewayClient {
           // During handshake, intercept challenge
           if (this.status === 'connecting' && evt.event === 'connect.challenge') {
             const challenge = evt.payload as ChallengePayload;
+            console.log('[oclaw-ws] Got challenge, nonce:', challenge.nonce);
             this.performHandshake(challenge.nonce)
               .then((hello) => {
                 clearTimeout(timeout);
@@ -140,16 +143,16 @@ export class GatewayClient {
   }
 
   private async performHandshake(nonce: string): Promise<HelloPayload> {
-    const device = await getDeviceInfo(nonce, this.token);
+    const device = getDeviceInfo(nonce, this.token, this.deviceId, this.deviceKey);
 
     const params: ConnectParams = {
       minProtocol: PROTOCOL_VERSION,
       maxProtocol: PROTOCOL_VERSION,
       client: {
-        id: 'mobile',
+        id: 'cli',
         version: APP_VERSION,
-        platform: Platform.OS,
-        mode: 'mobile',
+        platform: 'darwin',
+        mode: 'cli',
         instanceId: this.instanceId,
       },
       caps: [],
@@ -159,7 +162,9 @@ export class GatewayClient {
       scopes: ['operator.admin', 'operator.read', 'operator.write'],
     };
 
+    console.log('[oclaw-ws] Sending connect request');
     const res = await this.request<HelloPayload>('connect', params);
+    console.log('[oclaw-ws] Got connect response:', JSON.stringify(res));
 
     // Validate hello-ok
     if (res.type !== 'hello-ok') {

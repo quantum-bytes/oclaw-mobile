@@ -1,33 +1,26 @@
-import { useEffect } from 'react';
-import { router } from 'expo-router';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { Redirect } from 'expo-router';
 import { useConnectionStore } from '../src/store/connection-store';
+
+// Auto-seed connection for simulator testing (reads device credentials from pair)
+const store = useConnectionStore.getState();
+if (store.connections.length === 0) {
+  store.addConnection({
+    host: '127.0.0.1',
+    port: 39421,
+    token: 'ollama',
+    label: '127.0.0.1:39421',
+    deviceId: 'a1d7f964c666ad314098f0b79501efa55e84f42792c2d040f7307889a281019d',
+    deviceKey: 'jOuF4Nb/UUve8VfxNld1zPbnDKoak4x01wrojv3p8Gk=',
+  });
+}
 
 export default function IndexScreen() {
   const activeId = useConnectionStore((s) => s.activeId);
   const connections = useConnectionStore((s) => s.connections);
 
-  useEffect(() => {
-    // Redirect based on whether we have a saved connection
-    if (activeId && connections.some((c) => c.id === activeId)) {
-      router.replace('/chat');
-    } else {
-      router.replace('/pair');
-    }
-  }, [activeId, connections]);
+  if (activeId && connections.some((c) => c.id === activeId)) {
+    return <Redirect href="/chat" />;
+  }
 
-  return (
-    <View style={styles.container}>
-      <ActivityIndicator color="#60a5fa" size="large" />
-    </View>
-  );
+  return <Redirect href="/pair" />;
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#09090b',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-});
